@@ -162,7 +162,8 @@ void createMesh()
 	const Real dy = width / (Real)(nCols - 1);
 	const Real dx = height / (Real)(nRows - 1);
 
-	Vector3r points[nRows*nCols];
+	//Vector3r points[nRows*nCols];
+    Vector3r* points = new Vector3r[nRows * nCols];
 	for (int i = 0; i < nRows; i++)
 	{
 		for (int j = 0; j < nCols; j++)
@@ -180,7 +181,8 @@ void createMesh()
 	TriangleModel::ParticleMesh::UVIndices uvIndices;
 	uvIndices.resize(nIndices);
 
-	unsigned int indices[nIndices];
+	//unsigned int indices[nIndices];
+    auto indices = new unsigned int[nIndices];
 	int index = 0;
 	for (int i = 0; i < nRows - 1; i++)
 	{
@@ -211,7 +213,11 @@ void createMesh()
 	}
 
 	SimulationModel *model = Simulation::getCurrent()->getModel();
-	model->addTriangleModel(nRows*nCols, nIndices / 3, &points[0], &indices[0], uvIndices, uvs);
+	//model->addTriangleModel(nRows*nCols, nIndices / 3, &points[0], &indices[0], uvIndices, uvs);
+    model->addTriangleModel(nRows*nCols, nIndices / 3, points, indices, uvIndices, uvs);
+
+    delete[] points;
+    delete[] indices;
 	
 	ParticleData &pd = model->getParticles();
 	for (unsigned int i = 0; i < pd.getNumberOfParticles(); i++)
