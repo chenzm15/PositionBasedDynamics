@@ -194,6 +194,8 @@ namespace Utilities
 		}
 	}
 
+    // 计算顶点法向量
+    // 顶点法向量 = 以这个点为顶点的全部三角形的法向量之和再归一化
 	template<class PositionData>
 	void IndexedFaceMesh::updateVertexNormals(const PositionData &pd)
 	{

@@ -25,6 +25,35 @@ void TimeStep::initParameters()
 	ParameterObject::initParameters();
 }
 
+static void computeAccelerationUnderSlidingFriction(const ParticleData& pd, unsigned int i, const Vector3r& grav, Vector3r& a)
+{
+    const Real friction_coeff = 0.2;
+    const Real eps = static_cast<Real>(1e-6);
+    Vector3r total_other_force = pd.getConstraintForce(i) + pd.getMass(i) * grav;
+    const Vector3r& velocity = pd.getVelocity(i);
+    Real total_other_force_x = std::abs(total_other_force.x());
+    Real pressure = std::sqrt(total_other_force.y() * total_other_force.y() + total_other_force.z() * total_other_force.z());
+    Real max_friction = friction_coeff * pressure;
+    if (velocity.norm() < eps) {
+        if (total_other_force_x <= max_friction + eps) {
+            a.setZero();
+        }
+        else {
+            a.y() = a.z() = 0.0;
+            int sign = total_other_force.x() > 0 ? 1 : -1;
+            a.x() = sign * (total_other_force_x - max_friction) * pd.getInvMass(i);
+        }
+    }
+    else {
+        int neg_sign = velocity.x() < 0 ? 1 : -1;
+        a.y() = a.z() = 0.0;
+        a.x() = (total_other_force.x() + neg_sign * max_friction) * pd.getInvMass(i);
+    }
+    if (a.x() != 0.0) {
+        printf("a_x = %lf", a.x());
+    }
+}
+
 void TimeStep::clearAccelerations(SimulationModel &model)
 {
 	//////////////////////////////////////////////////////////////////////////
@@ -53,11 +82,14 @@ void TimeStep::clearAccelerations(SimulationModel &model)
 	for (unsigned int i = 0; i < count; i++)
 	{
 		// Clear accelerations of dynamic particles
-		if (pd.getMass(i) != 0.0)
+        if (pd.getParticleType(i) == ParticleType::CURTAIN_HANGING_POINT)
+            computeAccelerationUnderSlidingFriction(pd, i, grav, pd.getAcceleration(i));
+		else if (pd.getMass(i) != 0.0)
 		{
 			Vector3r &a = pd.getAcceleration(i);
 			a = grav;
 		}
+        pd.setConstraintForce(i, Vector3r(0.0, 0.0, 0.0));
 	}
 }
 

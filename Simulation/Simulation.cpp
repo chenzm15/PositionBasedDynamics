@@ -55,7 +55,7 @@ bool Simulation::hasCurrent()
 void Simulation::init()
 {
 	initParameters();
-	setSimulationMethod(static_cast<int>(SimulationMethods::PBD));
+	setSimulationMethod(static_cast<int>(SimulationMethods::XPBD));
 }
 
 void Simulation::initParameters()
@@ -109,7 +109,9 @@ void Simulation::setSimulationMethod(const int val)
 	}
 	else if (method == SimulationMethods::XPBD)
 	{
-		LOG_INFO << "XPBD not implemented yet.";
+        m_timeStep = new TimeStepController();
+        m_timeStep->init();
+        TimeManager::getCurrent()->setTimeStepSize(static_cast<Real>(0.005));
 	}
 	else if (method == SimulationMethods::IBDS)
 	{

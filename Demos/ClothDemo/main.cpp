@@ -17,7 +17,7 @@
 
 // Enable memory leak detection
 #if defined(_DEBUG) && !defined(EIGEN_ALIGN)
-	#define new DEBUG_NEW 
+	//#define new DEBUG_NEW 
 #endif
 
 using namespace PBD;
@@ -40,8 +40,8 @@ const int nRows = 50;
 const int nCols = 50;
 const Real width = 10.0;
 const Real height = 10.0;
-short simulationMethod = 2;
-short bendingMethod = 2;
+short simulationMethod = 1;
+short bendingMethod = 1;
 DemoBase *base;
 
 // main 
@@ -60,7 +60,15 @@ int main( int argc, char **argv )
 
 	initParameters();
 
-	Simulation::getCurrent()->setSimulationMethodChangedCallback([&]() { reset(); initParameters(); base->getSceneLoader()->readParameterObject(Simulation::getCurrent()->getTimeStep()); });
+	Simulation::getCurrent()->setSimulationMethodChangedCallback([&]() {
+        reset();
+        initParameters();
+        //base->getSceneLoader()->readParameterObject(Simulation::getCurrent()->getTimeStep());
+        TwType enumType2 = TwDefineEnum("SimulationMethodType", NULL, 0);
+        TwAddVarCB(MiniGL::getTweakBar(), "SimulationMethod", enumType2, setSimulationMethod, getSimulationMethod, &simulationMethod, " label='Simulation method' enum='0 {None}, 1 {Distance constraints}, 2 {FEM based PBD}, 3 {Strain based dynamics}' group=Simulation");
+        TwType enumType3 = TwDefineEnum("BendingMethodType", NULL, 0);
+        TwAddVarCB(MiniGL::getTweakBar(), "BendingMethod", enumType3, setBendingMethod, getBendingMethod, &bendingMethod, " label='Bending method' enum='0 {None}, 1 {Dihedral angle}, 2 {Isometric bending}' group=Bending");
+    });
 
 	// OpenGL
 	MiniGL::setClientIdleFunc (50, timeStep);		
@@ -226,8 +234,13 @@ void createMesh()
 	}
 
 	// Set mass of points to zero => make it static
-	pd.setMass(0, 0.0);
-	pd.setMass((nRows-1)*nCols, 0.0);
+	//pd.setMass(0, 0.0);
+	//pd.setMass((nRows-1)*nCols, 0.0);
+    const unsigned int hagging_point_gap = 7;
+    for (unsigned int i = 0; i < nRows; i += hagging_point_gap)
+    {
+        pd.setParticleType(i * nCols, ParticleType::CURTAIN_HANGING_POINT);
+    }
 
 	// init constraints
 	for (unsigned int cm = 0; cm < model->getTriangleModels().size(); cm++)

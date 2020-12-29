@@ -14,6 +14,8 @@ int SimulationModel::CLOTH_POISSON_RATIO_XY = -1;
 int SimulationModel::CLOTH_POISSON_RATIO_YX = -1;
 int SimulationModel::CLOTH_NORMALIZE_STRETCH = -1;
 int SimulationModel::CLOTH_NORMALIZE_SHEAR = -1;
+int SimulationModel::CLOTH_COMPLIANCE = -1;
+int SimulationModel::CLOTH_BENDING_COMPLIANCE = -1;
 int SimulationModel::SOLID_STIFFNESS = -1;
 int SimulationModel::SOLID_POISSON_RATIO = -1;
 int SimulationModel::SOLID_NORMALIZE_STRETCH = -1;
@@ -31,6 +33,9 @@ SimulationModel::SimulationModel()
 	m_cloth_yxPoissonRatio = static_cast<Real>(0.3);
 	m_cloth_normalizeShear = false;
 	m_cloth_normalizeStretch = false;
+
+    m_cloth_compliance = static_cast<Real>(0);
+    m_cloth_bendingCompliance = static_cast<Real>(0.1);
 
 	m_solid_stiffness = static_cast<Real>(1.0);
 	m_solid_poissonRatio = static_cast<Real>(0.3);
@@ -110,6 +115,17 @@ void SimulationModel::initParameters()
 	CLOTH_NORMALIZE_SHEAR = createBoolParameter("cloth_normalizeShear", "Normalize shear", &m_cloth_normalizeShear);
 	setGroup(CLOTH_NORMALIZE_SHEAR, "Cloth");
 	setDescription(CLOTH_NORMALIZE_SHEAR, "Normalize shear (strain based dynamics)");
+
+    // XPBD
+    CLOTH_COMPLIANCE = createNumericParameter("cloth_compliance", "Compliance", &m_cloth_compliance);
+    setGroup(CLOTH_COMPLIANCE, "Cloth");
+    setDescription(CLOTH_COMPLIANCE, "Compliance of cloth models (XPBD)");
+    static_cast<NumericParameter<Real>*>(getParameter(CLOTH_COMPLIANCE))->setMinValue(0.0);
+
+    CLOTH_BENDING_COMPLIANCE = createNumericParameter("cloth_bendingCompliance", "Bending Compliance", &m_cloth_bendingCompliance);
+    setGroup(CLOTH_BENDING_COMPLIANCE, "Cloth");
+    setDescription(CLOTH_BENDING_COMPLIANCE, "Bending compliance of cloth models (XPBD)");
+    static_cast<NumericParameter<Real>*>(getParameter(CLOTH_BENDING_COMPLIANCE))->setMinValue(0.0);
 
 	SOLID_STIFFNESS = createNumericParameter("solid_stiffness", "Stiffness", &m_solid_stiffness);
 	setGroup(SOLID_STIFFNESS, "Solids");
@@ -765,3 +781,81 @@ void SimulationModel::resetContacts()
 	m_particleSolidContactConstraints.clear();
 }
 
+static bool rayTriangleIntersection(const Vector3r& x0, const Vector3r& x1, const Vector3r& x2, const Vector3r& p0, const Vector3r& dir, Real &min_t)
+{
+    Vector3r e1, e2, s1;
+    e1 = x1 - x0;
+    e2 = x2 - x0;
+    s1 = dir.cross(e2);
+    Real divisor = s1.dot(e1);
+    if (divisor == 0) return false;
+    // Test the first barycentric coordinate
+    Vector3r tt = p0 - x0;
+    Real b1 = tt.dot(s1);
+    if (divisor > 0 && (b1 < 0 || b1 > divisor))		return false;
+    if (divisor < 0 && (b1 > 0 || b1 < divisor))		return false;
+    // Test the second barycentric coordinate
+    Vector3r s2;
+    s2 = tt.cross(e1);
+    Real b2 = dir.dot(s2);
+    if (divisor > 0 && (b2 < 0 || b1 + b2 > divisor))	return false;
+    if (divisor < 0 && (b2 > 0 || b1 + b2 < divisor))	return false;
+    // Compute t to intersection point
+    min_t = e2.dot(s2) / divisor;
+    return min_t > 0;
+}
+
+static Real Squared_VE_Distance(const Vector3r& xi, const Vector3r& xa, const Vector3r& xb, Real &r)
+{
+    Vector3r xia = xi - xa, xba = xb - xa;
+    Real xia_xba = xia.dot(xba);
+    Real xba_xba = xba.dot(xba);
+    if (xia_xba < 0)
+        r = 0;
+    else if (xia_xba > xba_xba)
+        r = 1;
+    else
+        r = xia_xba / xba_xba;
+    Vector3r N;
+    N = xi - xa * (1-r) - xb * r;
+    return N.squaredNorm();
+}
+
+void SimulationModel::selectTriangleFaceWithRay(const Vector3r& p, const Vector3r& q, int& select_vertex_index)
+{
+    Vector3r dir = q - p;
+    dir.normalize();
+    Real min_t = REAL_MAX;
+    unsigned int select_t;
+
+    for (auto& triModel : m_triangleModels)
+    {
+        const unsigned int offset = triModel->getIndexOffset();
+        auto& mesh = triModel->getParticleMesh();
+        std::vector<unsigned int>& faces = mesh.getFaces();
+        const unsigned int numFaces = mesh.numFaces();
+        bool find_closer_point = false;
+        for (unsigned int t = 0; t < numFaces; ++t) {
+            Real _min_t;
+            if (rayTriangleIntersection(m_particles.getPosition(faces[3 * t] + offset), m_particles.getPosition(faces[3 * t + 1] + offset), m_particles.getPosition(faces[3 * t + 2] + offset),
+                p, dir, _min_t) && _min_t < min_t)
+            {
+                select_t = t;
+                min_t = _min_t;
+                find_closer_point = true;
+            }
+        }
+        if (find_closer_point) {
+            Real r;
+            Real d0 = Squared_VE_Distance(m_particles.getPosition(faces[3 * select_t] + offset), p, q, r);
+            Real d1 = Squared_VE_Distance(m_particles.getPosition(faces[3 * select_t + 1] + offset), p, q, r);
+            Real d2 = Squared_VE_Distance(m_particles.getPosition(faces[3 * select_t + 2] + offset), p, q, r);
+            if (d0 < d1 && d0 < d2)
+                select_vertex_index = faces[3 * select_t] + offset;
+            else if (d1 < d2)
+                select_vertex_index = faces[3 * select_t + 1] + offset;
+            else
+                select_vertex_index = faces[3 * select_t + 2] + offset;
+        }
+    }
+}

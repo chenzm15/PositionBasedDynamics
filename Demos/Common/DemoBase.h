@@ -41,6 +41,8 @@ namespace PBD
 		Utilities::SceneLoader::SceneData m_scene;
 		float m_jointColor[4] = { 0.0f, 0.6f, 0.2f, 1 };
 
+        int m_screenWidth;
+        int m_screenHeight;
 
 		virtual void initParameters();
 

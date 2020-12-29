@@ -1,6 +1,7 @@
 #include "MiniGL.h"
 
 #ifdef WIN32
+#define NOMINMAX
 #include "windows.h"
 #else
 #include <cstdio>
@@ -23,6 +24,8 @@
 
 #include "math.h"
 #include <iostream>
+#include "Simulation/Simulation.h"
+#include "Simulation/TimeStepController.h"
 #include "Utils/Logger.h"
 
 using namespace PBD;
@@ -67,6 +70,7 @@ bool MiniGL::m_breakPointLoop = false;
 std::vector<MiniGL::Triangle> MiniGL::m_drawTriangle;
 std::vector<MiniGL::Line> MiniGL::m_drawLines;
 std::vector<MiniGL::Point> MiniGL::m_drawPoints;
+int MiniGL::m_selectVertexIndex = -1;
 
 
 
@@ -868,6 +872,90 @@ void MiniGL::rotateX(Real x)
 	m_rotation = quat*m_rotation;
 }
 
+static void Matrix_Vector_Product_4(Real *A, Real *x, Real *r)
+{
+    r[0] = A[0] * x[0] + A[1] * x[1] + A[2] * x[2] + A[3] * x[3];
+    r[1] = A[4] * x[0] + A[5] * x[1] + A[6] * x[2] + A[7] * x[3];
+    r[2] = A[8] * x[0] + A[9] * x[1] + A[10] * x[2] + A[11] * x[3];
+    r[3] = A[12] * x[0] + A[13] * x[1] + A[14] * x[2] + A[15] * x[3];
+}
+
+static void Matrix_Transpose_4(Real *A, Real *R)
+{
+    if (R != A) memcpy(R, A, sizeof(Real) * 16);
+    std::swap(R[1], R[4]);
+    std::swap(R[2], R[8]);
+    std::swap(R[3], R[12]);
+    std::swap(R[6], R[9]);
+    std::swap(R[7], R[13]);
+    std::swap(R[11], R[14]);
+}
+
+void MiniGL::getSelectionRay(int mouse_x, int mouse_y, Vector3r& p, Vector3r& q)
+{
+    //// Convert (x, y) into the 2D unit space
+    //Real new_x = (Real)(2 * mouse_x) / (Real)width - 1;
+    //Real new_y = 1 - (Real)(2 * mouse_y) / (Real)height;
+
+    //// Convert (x, y) into the 3D viewing space
+    //Real M[16];
+    //glGetDoublev(GL_PROJECTION_MATRIX, M);
+    ////M is in column-major but inv_m is in row-major
+    //Real inv_M[16];
+    //memset(inv_M, 0, sizeof(Real) * 16);
+    //inv_M[0] = 1 / M[0];
+    //inv_M[5] = 1 / M[5];
+    //inv_M[14] = 1 / M[14];
+    //inv_M[11] = -1;
+    //inv_M[15] = M[10] / M[14];
+    //Real p0[4] = { new_x, new_y, -1, 1 }, p1[4];
+    //Real q0[4] = { new_x, new_y,  1, 1 }, q1[4];
+    //Matrix_Vector_Product_4(inv_M, p0, p1);
+    //Matrix_Vector_Product_4(inv_M, q0, q1);
+
+    //// Convert (x ,y) into the 3D world space
+    ////Matrix3r rot;
+    ////rot = m_rotation.toRotationMatrix();
+    ////Matrix4r transform(Matrix4r::Identity());
+    ////Vector3r scale(m_zoom, m_zoom, m_zoom);
+    ////transform.block<3, 3>(0, 0) = rot.eval();
+    ////transform.block<3, 1>(0, 3) = m_translation.eval();
+    ////transform(0, 0) *= scale[0];
+    ////transform(1, 1) *= scale[1];
+    ////transform(2, 2) *= scale[2];
+    ////transform = transform.inverse().eval();
+    ////memcpy(M, transform.data(), sizeof(Real) * 16);
+    //Matrix4r model_view;
+    //glGetDoublev(GL_MODELVIEW_MATRIX, model_view.data());
+    //memcpy(M, model_view.data(), sizeof(Real) * 16);
+    //Matrix_Transpose_4(M, M);
+    //Matrix_Vector_Product_4(M, p1, p0);
+    //Matrix_Vector_Product_4(M, q1, q0);
+
+    //p[0] = p0[0] / p0[3];
+    //p[1] = p0[1] / p0[3];
+    //p[2] = p0[2] / p0[3];
+    //q[0] = q0[0] / q0[3];
+    //q[1] = q0[1] / q0[3];
+    //q[2] = q0[2] / q0[3];
+
+    GLint viewport[4];
+    GLdouble mv[16], pm[16];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetDoublev(GL_MODELVIEW_MATRIX, mv);
+    glGetDoublev(GL_PROJECTION_MATRIX, pm);
+
+    GLdouble resx, resy, resz;
+    gluUnProject(mouse_x, viewport[3] - mouse_y, -1, mv, pm, viewport, &resx, &resy, &resz);
+    p[0] = (Real)resx;
+    p[1] = (Real)resy;
+    p[2] = (Real)resz;
+    gluUnProject(mouse_x, viewport[3] - mouse_y, 1, mv, pm, viewport, &resx, &resy, &resz);
+    q[0] = (Real)resx;
+    q[1] = (Real)resy;
+    q[2] = (Real)resz;
+}
+
 void MiniGL::mousePress (int button, int state, int x, int y)
 {
 	if (TwEventMouseButtonGLUT(button, state, x, y))  // send event to AntTweakBar
@@ -900,6 +988,38 @@ void MiniGL::mousePress (int button, int state, int x, int y)
 		}
 	}
 
+    if (button == GLUT_LEFT_BUTTON) {
+        if (state == GLUT_DOWN) {
+            // 为测试窗帘拉动交互效果，暂时关闭Demo原有的拖选粒子和刚体的功能，即令选择函数的指针selectionfunc = NULL
+            Vector3r p, q;
+            getSelectionRay(x, y, p, q);
+            printf("p = (%f %f %f)\n", p[0], p[1], p[2]);
+            printf("q = (%f %f %f)\n", q[0], q[1], q[2]);
+            SimulationModel *model = Simulation::getCurrent()->getModel();
+            m_selectVertexIndex = -1;
+            model->selectTriangleFaceWithRay(p, q, m_selectVertexIndex);
+            if (m_selectVertexIndex != -1) {
+                ParticleData &pd = model->getParticles();
+                pd.setParticleType(m_selectVertexIndex, ParticleType::FOLLOW_MOUSE);
+                // TODO: 是否需要参考Chebyshev demo中的Reset_More_Fixed函数，把选中点邻近的一部分点都设为跟随鼠标移动
+                Vector3r diff = pd.getPosition(m_selectVertexIndex) - p, dir = q - p;
+                dir.normalize();
+                Real dist = diff.dot(dir);
+                Vector3r target = p + dist * dir;
+                TimeStepController* timestep = dynamic_cast<TimeStepController*>(Simulation::getCurrent()->getTimeStep());
+                timestep->setMousePos(target);
+            }
+        }
+        else if (state == GLUT_UP) {
+            if (m_selectVertexIndex != -1) {
+                SimulationModel *model = Simulation::getCurrent()->getModel();
+                ParticleData &pd = model->getParticles();
+                pd.setParticleType(m_selectVertexIndex, ParticleType::NORMAL);
+                m_selectVertexIndex = -1;
+            }
+        }
+    }
+
 	glutPostRedisplay ();
 }
 
@@ -924,8 +1044,9 @@ void MiniGL::mouseMove (int x, int y)
 		// translate scene in z direction		
 		if (modifier_key == GLUT_ACTIVE_CTRL)
 		{
-			move (0, 0, -(d_x + d_y) / static_cast<Real>(10.0));
-		}
+			//move (0, 0, -(d_x + d_y) / static_cast<Real>(10.0));
+            move(0, 0, -d_y / static_cast<Real>(10.0));
+        }
 		// translate scene in x/y direction
 		else if (modifier_key == GLUT_ACTIVE_SHIFT)
 		{
@@ -937,6 +1058,18 @@ void MiniGL::mouseMove (int x, int y)
 			rotateX(d_y/ static_cast<Real>(100.0));
 			rotateY(-d_x/ static_cast<Real>(100.0));
 		}
+        else if (m_selectVertexIndex != -1) {
+            Vector3r p, q;
+            getSelectionRay(x, y, p, q);
+            SimulationModel *model = Simulation::getCurrent()->getModel();
+            ParticleData &pd = model->getParticles();
+            Vector3r diff = pd.getPosition(m_selectVertexIndex) - p, dir = q - p;
+            dir.normalize();
+            Real dist = diff.dot(dir);
+            Vector3r target = p + dist * dir;
+            TimeStepController* timestep = dynamic_cast<TimeStepController*>(Simulation::getCurrent()->getTimeStep());
+            timestep->setMousePos(target);
+        }
 	}
 
 	if (mousefunc != NULL)
@@ -1027,6 +1160,19 @@ void MiniGL::drawElements()
 		Point &p = m_drawPoints[i];
 		drawSphere(p.a, p.pointSize, p.color);
 	}
+    // 画鼠标点击布料时选中的点
+    if (m_selectVertexIndex != -1) {
+        Point p;
+        SimulationModel *model = Simulation::getCurrent()->getModel();
+        ParticleData &pd = model->getParticles();
+        p.a = pd.getPosition(m_selectVertexIndex);
+        p.pointSize = 0.005f;
+        p.color[0] = 0.8f;
+        p.color[0] = 0.0f;
+        p.color[0] = 0.0f;
+        p.color[0] = 1.0f;
+        drawSphere(p.a, p.pointSize, p.color);
+    }
 }
 
 void MiniGL::clearPoints()

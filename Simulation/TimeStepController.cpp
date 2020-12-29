@@ -1,5 +1,6 @@
 #include "TimeStepController.h"
 #include "Simulation/TimeManager.h"
+#include "Simulation/Simulation.h"
 #include "PositionBasedDynamics/PositionBasedRigidBodyDynamics.h"
 #include "PositionBasedDynamics/TimeIntegration.h"
 #include <iostream>
@@ -100,9 +101,23 @@ void TimeStepController::step(SimulationModel &model)
 		#pragma omp for schedule(static) 
 		for (int i = 0; i < (int) pd.size(); i++)
 		{
-			pd.getLastPosition(i) = pd.getOldPosition(i);
-			pd.getOldPosition(i) = pd.getPosition(i);
-			TimeIntegration::semiImplicitEuler(h, pd.getMass(i), pd.getPosition(i), pd.getVelocity(i), pd.getAcceleration(i));
+            pd.getLastPosition(i) = pd.getOldPosition(i);
+            pd.getOldPosition(i) = pd.getPosition(i);
+            if (pd.getParticleType(i) == ParticleType::FOLLOW_MOUSE) {
+                Vector3r& x = pd.getPosition(i);
+                Vector3r dir = m_mousePos - x;
+                Real dir_length = dir.norm();
+                if (dir_length > 0.2) {
+                    dir.normalize();
+                    dir *= dir_length;
+                }
+                x += dir;
+                Vector3r& v = pd.getVelocity(i);
+                v.setZero();
+            }
+            else {
+                TimeIntegration::semiImplicitEuler(h, pd.getMass(i), pd.getPosition(i), pd.getVelocity(i), pd.getAcceleration(i));
+            }
 		}
 
 		//////////////////////////////////////////////////////////////////////////
@@ -146,6 +161,8 @@ void TimeStepController::step(SimulationModel &model)
 		#pragma omp for schedule(static) 
 		for (int i = 0; i < (int) pd.size(); i++)
 		{
+            if (pd.getParticleType(i) == ParticleType::FOLLOW_MOUSE)
+                continue;
 			if (m_velocityUpdateMethod == 0)
 				TimeIntegration::velocityUpdateFirstOrder(h, pd.getMass(i), pd.getPosition(i), pd.getOldPosition(i), pd.getVelocity(i));
 			else
@@ -244,6 +261,8 @@ void TimeStepController::positionConstraintProjection(SimulationModel &model)
 		constraint->initConstraintBeforeProjection(model);
 	}
 
+    SimulationMethods simulation_method = static_cast<SimulationMethods>(Simulation::getCurrent()->getSimulationMethod());
+
 	while (m_iterations < m_maxIterations)
 	{
 		for (unsigned int group = 0; group < groups.size(); group++)
@@ -255,9 +274,11 @@ void TimeStepController::positionConstraintProjection(SimulationModel &model)
 				for (int i = 0; i < groupSize; i++)
 				{
 					const unsigned int constraintIndex = groups[group][i];
-
-					constraints[constraintIndex]->updateConstraint(model);
-					constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
+                    constraints[constraintIndex]->updateConstraint(model);
+                    if (simulation_method == SimulationMethods::XPBD)
+                        constraints[constraintIndex]->solvePositionConstraintExtended(model, m_iterations);
+                    else
+                        constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
 				}
 			}
 		}
@@ -269,6 +290,24 @@ void TimeStepController::positionConstraintProjection(SimulationModel &model)
 
 		m_iterations++;
 	}
+
+    // ‘º ¯¡¶º∆À„
+    if (simulation_method == SimulationMethods::XPBD)
+    {
+        for (unsigned int group = 0; group < groups.size(); group++)
+        {
+            const int groupSize = (int)groups[group].size();
+#pragma omp parallel if(groupSize > MIN_PARALLEL_SIZE) default(shared)
+            {
+#pragma omp for schedule(static) 
+                for (int i = 0; i < groupSize; i++)
+                {
+                    const unsigned int constraintIndex = groups[group][i];
+                    constraints[constraintIndex]->computeConstraintForce(model);
+                }
+            }
+        }
+    }
 }
 
 

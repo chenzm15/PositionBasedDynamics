@@ -12,6 +12,7 @@
 
 using namespace PBD;
 
+const Real eps = static_cast<Real>(1e-6);
 
 int BallJoint::TYPE_ID = IDFactory::getId();
 int BallOnLineJoint::TYPE_ID = IDFactory::getId();
@@ -1199,6 +1200,61 @@ bool DistanceConstraint::solvePositionConstraint(SimulationModel &model, const u
 	return res;
 }
 
+bool DistanceConstraint::solvePositionConstraintExtended(SimulationModel & model, const unsigned int iter)
+{
+    ParticleData &pd = model.getParticles();
+
+    const unsigned i1 = m_bodies[0];
+    const unsigned i2 = m_bodies[1];
+
+    Vector3r &x1 = pd.getPosition(i1);
+    Vector3r &x2 = pd.getPosition(i2);
+    const Real invMass1 = pd.getInvMass(i1);
+    const Real invMass2 = pd.getInvMass(i2);
+
+    if (iter == 0)
+        m_lambda = 0.0;
+
+    TimeManager *tm = TimeManager::getCurrent();
+    const Real h = tm->getTimeStepSize();
+    Real compliance = model.getValue<Real>(SimulationModel::CLOTH_COMPLIANCE) / (h * h);
+
+    Vector3r corr1, corr2;
+    const bool res = PositionBasedDynamics::solve_DistanceConstraint_extended(
+        x1, invMass1, x2, invMass2,
+        m_restLength, compliance, m_lambda,
+        corr1, corr2
+    );
+
+    if (res) {
+        if (invMass1 != 0.0 && pd.getParticleType(i1) == ParticleType::NORMAL)
+            x1 += corr1;
+        if (invMass2 != 0.0 && pd.getParticleType(i2) == ParticleType::NORMAL)
+            x2 += corr2;
+    }
+    return false;
+}
+
+void DistanceConstraint::computeConstraintForce(SimulationModel &model) const
+{
+    ParticleData &pd = model.getParticles();
+
+    const unsigned i1 = m_bodies[0];
+    const unsigned i2 = m_bodies[1];
+    const Vector3r& x1 = pd.getPosition(i1);
+    const Vector3r& x2 = pd.getPosition(i2);
+    Vector3r n = x1 - x2;
+    n.normalize();
+
+    TimeManager *tm = TimeManager::getCurrent();
+    const Real h_2 = tm->getTimeStepSize() * tm->getTimeStepSize();
+    Vector3r cf = n * m_lambda * h_2;
+    Vector3r& f1 = pd.getConstraintForce(i1);
+    Vector3r& f2 = pd.getConstraintForce(i2);
+    f1 += cf;
+    f2 -= cf;
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 // DihedralConstraint
@@ -1278,6 +1334,95 @@ bool DihedralConstraint::solvePositionConstraint(SimulationModel &model, const u
 			x4 += corr4;
 	}
 	return res;
+}
+
+bool DihedralConstraint::solvePositionConstraintExtended(SimulationModel & model, const unsigned int iter)
+{
+    ParticleData &pd = model.getParticles();
+
+    const unsigned i1 = m_bodies[0];
+    const unsigned i2 = m_bodies[1];
+    const unsigned i3 = m_bodies[2];
+    const unsigned i4 = m_bodies[3];
+
+    Vector3r &x1 = pd.getPosition(i1);
+    Vector3r &x2 = pd.getPosition(i2);
+    Vector3r &x3 = pd.getPosition(i3);
+    Vector3r &x4 = pd.getPosition(i4);
+
+    const Real invMass1 = pd.getInvMass(i1);
+    const Real invMass2 = pd.getInvMass(i2);
+    const Real invMass3 = pd.getInvMass(i3);
+    const Real invMass4 = pd.getInvMass(i4);
+    
+    if (iter == 0)
+        m_lambda = 0.0;
+
+    TimeManager *tm = TimeManager::getCurrent();
+    const Real h = tm->getTimeStepSize();
+    Real compliance = model.getValue<Real>(SimulationModel::CLOTH_BENDING_COMPLIANCE) / (h * h);
+
+    Vector3r corr1, corr2, corr3, corr4;
+    const bool res = PositionBasedDynamics::solve_DihedralConstraint_extended(
+        x1, invMass1, x2, invMass2, x3, invMass3, x4, invMass4,
+        m_restAngle, compliance, m_lambda,
+        corr1, corr2, corr3, corr4
+    );
+
+    if (res)
+    {
+        if (invMass1 != 0.0 && pd.getParticleType(i1) == ParticleType::NORMAL)
+            x1 += corr1;
+        if (invMass2 != 0.0 && pd.getParticleType(i2) == ParticleType::NORMAL)
+            x2 += corr2;
+        if (invMass3 != 0.0 && pd.getParticleType(i3) == ParticleType::NORMAL)
+            x3 += corr3;
+        if (invMass4 != 0.0 && pd.getParticleType(i4) == ParticleType::NORMAL)
+            x4 += corr4;
+    }
+    return res;
+}
+
+void DihedralConstraint::computeConstraintForce(SimulationModel &model) const
+{
+    ParticleData &pd = model.getParticles();
+
+    const unsigned i1 = m_bodies[0];
+    const unsigned i2 = m_bodies[1];
+    const unsigned i3 = m_bodies[2];
+    const unsigned i4 = m_bodies[3];
+
+    Vector3r &p0 = pd.getPosition(i1);
+    Vector3r &p1 = pd.getPosition(i2);
+    Vector3r &p2 = pd.getPosition(i3);
+    Vector3r &p3 = pd.getPosition(i4);
+    
+    Vector3r e = p3 - p2;
+    Real  elen = e.norm();
+    if (elen < eps)
+        return;
+
+    Real invElen = static_cast<Real>(1.0) / elen;
+
+    Vector3r n1 = (p2 - p0).cross(p3 - p0); n1 /= n1.squaredNorm();
+    Vector3r n2 = (p3 - p1).cross(p2 - p1); n2 /= n2.squaredNorm();
+
+    Vector3r d0 = elen * n1;
+    Vector3r d1 = elen * n2;
+    Vector3r d2 = (p0 - p3).dot(e) * invElen * n1 + (p1 - p3).dot(e) * invElen * n2;
+    Vector3r d3 = (p2 - p0).dot(e) * invElen * n1 + (p2 - p1).dot(e) * invElen * n2;
+
+    Vector3r& f1 = pd.getConstraintForce(i1);
+    Vector3r& f2 = pd.getConstraintForce(i2);
+    Vector3r& f3 = pd.getConstraintForce(i3);
+    Vector3r& f4 = pd.getConstraintForce(i4);
+    TimeManager *tm = TimeManager::getCurrent();
+    const Real h = tm->getTimeStepSize();
+    const Real s = m_lambda * h * h;
+    f1 += d0 * s;
+    f2 += d1 * s;
+    f3 += d2 * s;
+    f4 += d3 * s;
 }
 
 

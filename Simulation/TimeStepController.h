@@ -27,6 +27,8 @@ namespace PBD
 		unsigned int m_maxIterations;
 		unsigned int m_maxIterationsV;
 
+        Vector3r m_mousePos;
+
 		virtual void initParameters();
 		
 		void positionConstraintProjection(SimulationModel &model);
@@ -39,6 +41,8 @@ namespace PBD
 
 		virtual void step(SimulationModel &model);
 		virtual void reset();
+
+        void setMousePos(const Vector3r& pos) { m_mousePos = pos; }
 	};
 }
 

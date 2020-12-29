@@ -20,6 +20,9 @@ namespace PBD
 		/** indices of the linked bodies */
 		unsigned int *m_bodies;
 
+        // 用于XPBD的Lagrange乘数
+        Real m_lambda;
+
 		Constraint(const unsigned int numberOfBodies) 
 		{
 			m_numberOfBodies = numberOfBodies; 
@@ -33,6 +36,10 @@ namespace PBD
 		virtual bool updateConstraint(SimulationModel &model) { return true; };
 		virtual bool solvePositionConstraint(SimulationModel &model, const unsigned int iter) { return true; };
 		virtual bool solveVelocityConstraint(SimulationModel &model, const unsigned int iter) { return true; };
+
+        // 用于XPBD
+        virtual bool solvePositionConstraintExtended(SimulationModel &model, const unsigned int iter) { return solvePositionConstraint(model, iter); }
+        virtual void computeConstraintForce(SimulationModel &model) const { }
 	};
 
 	class BallJoint : public Constraint
@@ -263,6 +270,9 @@ namespace PBD
 
 		virtual bool initConstraint(SimulationModel &model, const unsigned int particle1, const unsigned int particle2);
 		virtual bool solvePositionConstraint(SimulationModel &model, const unsigned int iter);
+        virtual bool solvePositionConstraintExtended(SimulationModel &model, const unsigned int iter);
+
+        virtual void computeConstraintForce(SimulationModel &model) const;
 	};
 
 	class DihedralConstraint : public Constraint
@@ -277,6 +287,9 @@ namespace PBD
 		virtual bool initConstraint(SimulationModel &model, const unsigned int particle1, const unsigned int particle2,
 									const unsigned int particle3, const unsigned int particle4);
 		virtual bool solvePositionConstraint(SimulationModel &model, const unsigned int iter);
+        virtual bool solvePositionConstraintExtended(SimulationModel &model, const unsigned int iter);
+
+        virtual void computeConstraintForce(SimulationModel &model) const;
 	};
 	
 	class IsometricBendingConstraint : public Constraint

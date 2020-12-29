@@ -80,6 +80,13 @@ namespace PBD
 		}
 	};
 
+    enum class ParticleType {
+        NORMAL = 0,
+        STATIC,
+        FOLLOW_MOUSE,
+        CURTAIN_HANGING_POINT
+    };
+
 	/** This class encapsulates the state of all particles of a particle model.
 	 * All parameters are stored in individual arrays.
 	 */
@@ -90,6 +97,7 @@ namespace PBD
 			// If the mass is zero, the particle is static
 			std::vector<Real> m_masses;
 			std::vector<Real> m_invMasses;
+            std::vector<ParticleType> m_types;
 
 			// Dynamic state
 			std::vector<Vector3r> m_x0;
@@ -99,16 +107,20 @@ namespace PBD
 			std::vector<Vector3r> m_oldX;
 			std::vector<Vector3r> m_lastX;
 
+            std::vector<Vector3r> m_constraintForces;
+
 		public:
 			FORCE_INLINE ParticleData(void)	:
 				  m_masses(),
 				  m_invMasses(),
+                  m_types(),
 				  m_x0(),
 				  m_x(),
 				  m_v(),
 				  m_a(),
 				  m_oldX(),
-				  m_lastX()
+				  m_lastX(),
+                  m_constraintForces()
 			{
 			}
 
@@ -116,12 +128,14 @@ namespace PBD
 			{
 				m_masses.clear();
 				m_invMasses.clear();
+                m_types.clear();
 				m_x0.clear();
 				m_x.clear();
 				m_v.clear();
 				m_a.clear();
 				m_oldX.clear();
 				m_lastX.clear();
+                m_constraintForces.clear();
 			}
 
 			FORCE_INLINE void addVertex(const Vector3r &vertex)
@@ -132,8 +146,10 @@ namespace PBD
 				m_lastX.push_back(vertex);
 				m_masses.push_back(1.0);
 				m_invMasses.push_back(1.0);
+                m_types.push_back(ParticleType::NORMAL);
 				m_v.push_back(Vector3r(0.0, 0.0, 0.0));
 				m_a.push_back(Vector3r(0.0, 0.0, 0.0));
+                m_constraintForces.push_back(Vector3r(0.0, 0.0, 0.0));
 			}
 
 			FORCE_INLINE Vector3r &getPosition(const unsigned int i)
@@ -250,6 +266,31 @@ namespace PBD
 				return m_invMasses[i];
 			}
 
+            FORCE_INLINE ParticleType getParticleType(const unsigned int i) const
+            {
+                return m_types[i];
+            }
+
+            FORCE_INLINE void setParticleType(const unsigned int i, ParticleType type)
+            {
+                m_types[i] = type;
+            }
+
+            FORCE_INLINE Vector3r& getConstraintForce(const unsigned int i)
+            {
+                return m_constraintForces[i];
+            }
+
+            FORCE_INLINE const Vector3r& getConstraintForce(const unsigned int i) const
+            {
+                return m_constraintForces[i];
+            }
+
+            FORCE_INLINE void setConstraintForce(const unsigned int i, const Vector3r& force)
+            {
+                m_constraintForces[i] = force;
+            }
+
 			FORCE_INLINE const unsigned int getNumberOfParticles() const
 			{
 				return (unsigned int) m_x.size();
@@ -261,12 +302,14 @@ namespace PBD
 			{
 				m_masses.resize(newSize);
 				m_invMasses.resize(newSize);
+                m_types.resize(newSize);
 				m_x0.resize(newSize);
 				m_x.resize(newSize);
 				m_v.resize(newSize);
 				m_a.resize(newSize);
 				m_oldX.resize(newSize);
 				m_lastX.resize(newSize);
+                m_constraintForces.resize(newSize);
 			}
 
 			/** Reserve the array containing the particle data.
@@ -275,12 +318,14 @@ namespace PBD
 			{
 				m_masses.reserve(newSize);
 				m_invMasses.reserve(newSize);
+                m_types.resize(newSize);
 				m_x0.reserve(newSize);
 				m_x.reserve(newSize);
 				m_v.reserve(newSize);
 				m_a.reserve(newSize);
 				m_oldX.reserve(newSize);
 				m_lastX.reserve(newSize);
+                m_constraintForces.reserve(newSize);
 			}
 
 			/** Release the array containing the particle data.
@@ -289,12 +334,14 @@ namespace PBD
 			{
 				m_masses.clear();
 				m_invMasses.clear();
+                m_types.clear();
 				m_x0.clear();
 				m_x.clear();
 				m_v.clear();
 				m_a.clear();
 				m_oldX.clear();
 				m_lastX.clear();
+                m_constraintForces.clear();
 			}
 
 			/** Release the array containing the particle data.

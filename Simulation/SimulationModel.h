@@ -27,6 +27,10 @@ namespace PBD
 			static int CLOTH_NORMALIZE_STRETCH;
 			static int CLOTH_NORMALIZE_SHEAR;
 
+            // XPBD
+            static int CLOTH_COMPLIANCE;
+            static int CLOTH_BENDING_COMPLIANCE;
+
 			static int SOLID_STIFFNESS;
 			static int SOLID_POISSON_RATIO;
 			static int SOLID_NORMALIZE_STRETCH;
@@ -72,6 +76,10 @@ namespace PBD
 			Real m_cloth_yxPoissonRatio;
 			bool  m_cloth_normalizeStretch;
 			bool  m_cloth_normalizeShear;
+
+            // XPBD
+            Real m_cloth_compliance;
+            Real m_cloth_bendingCompliance;
 
 			Real m_solid_stiffness;
 			Real m_solid_poissonRatio;
@@ -198,6 +206,8 @@ namespace PBD
 			void setRodBendingStiffness2(Real val) { m_rod_bendingStiffness2 = val; }
 			Real getRodTwistingStiffness() const { return m_rod_twistingStiffness; }
 			void setRodTwistingStiffness(Real val) { m_rod_twistingStiffness = val; }
+
+            void selectTriangleFaceWithRay(const Vector3r& p, const Vector3r& q, int& select_vertex_index);
 	};
 }
 

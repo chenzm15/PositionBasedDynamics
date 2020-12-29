@@ -37,6 +37,30 @@ bool PositionBasedDynamics::solve_DistanceConstraint(
 	return true;
 }
 
+bool PositionBasedDynamics::solve_DistanceConstraint_extended(
+    const Vector3r & p0, Real invMass0,
+    const Vector3r & p1, Real invMass1,
+    const Real restLength,
+    const Real compliance,
+    Real& lambda,
+    Vector3r & corr0, Vector3r & corr1)
+{
+    Real wSum = invMass0 + invMass1;
+    if (wSum == 0.0)
+        return false;
+
+    Vector3r n = p1 - p0;
+    Real d = n.norm();
+    n.normalize();
+
+    Real delta_lambda = (-(d - restLength) - compliance * lambda) / (wSum + compliance);
+    corr0 = -invMass0 * delta_lambda * n;
+    corr1 =  invMass1 * delta_lambda * n;
+    lambda += delta_lambda;
+
+    return true;
+}
+
 
 bool PositionBasedDynamics::solve_DihedralConstraint(
 	const Vector3r &p0, Real invMass0,		
@@ -103,6 +127,62 @@ bool PositionBasedDynamics::solve_DihedralConstraint(
 	corr3 = - invMass3 * lambda * d3;
 
 	return true;
+}
+
+bool PBD::PositionBasedDynamics::solve_DihedralConstraint_extended(
+    const Vector3r & p0, Real invMass0,
+    const Vector3r & p1, Real invMass1,
+    const Vector3r & p2, Real invMass2,
+    const Vector3r & p3, Real invMass3,
+    const Real restAngle, const Real compliance, Real& lambda,
+    Vector3r & corr0, Vector3r & corr1, Vector3r & corr2, Vector3r & corr3)
+{
+    if (invMass0 == 0.0 && invMass1 == 0.0)
+        return false;
+
+    Vector3r e = p3 - p2;
+    Real  elen = e.norm();
+    if (elen < eps)
+        return false;
+
+    Real invElen = static_cast<Real>(1.0) / elen;
+
+    Vector3r n1 = (p2 - p0).cross(p3 - p0); n1 /= n1.squaredNorm();
+    Vector3r n2 = (p3 - p1).cross(p2 - p1); n2 /= n2.squaredNorm();
+
+    Vector3r d0 = elen * n1;
+    Vector3r d1 = elen * n2;
+    Vector3r d2 = (p0 - p3).dot(e) * invElen * n1 + (p1 - p3).dot(e) * invElen * n2;
+    Vector3r d3 = (p2 - p0).dot(e) * invElen * n1 + (p2 - p1).dot(e) * invElen * n2;
+
+    n1.normalize();
+    n2.normalize();
+    Real dot = n1.dot(n2);
+
+    if (dot < -1.0) dot = -1.0;
+    if (dot > 1.0) dot = 1.0;
+    Real phi = acos(dot);
+
+    Real s_denom = 
+        invMass0 * d0.squaredNorm() +
+        invMass1 * d1.squaredNorm() +
+        invMass2 * d2.squaredNorm() +
+        invMass3 * d3.squaredNorm();
+
+    //if (n1.cross(n2).dot(e) > 0.0)
+    //    s_denom = -s_denom;
+
+    Real delta_lambda = (-(phi - restAngle) - compliance * lambda) / (s_denom + compliance);
+    if (n1.cross(n2).dot(e) > 0.0)
+        delta_lambda = -delta_lambda;
+
+    corr0 = invMass0 * delta_lambda * d0;
+    corr1 = invMass1 * delta_lambda * d1;
+    corr2 = invMass2 * delta_lambda * d2;
+    corr3 = invMass3 * delta_lambda * d3;
+    lambda += delta_lambda;
+
+    return true;
 }
 
 bool PositionBasedDynamics::solve_VolumeConstraint(

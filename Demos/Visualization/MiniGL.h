@@ -105,6 +105,8 @@ namespace PBD
 		static std::vector<Line> m_drawLines;
 		static std::vector<Triangle> m_drawTriangle;
 
+        static int m_selectVertexIndex;
+
 		static void reshape (int w, int h);
 		static void idle ();
 		static void keyboard (unsigned char k, int x, int y);
@@ -177,6 +179,8 @@ namespace PBD
 		static void TW_CALL getWireframeCB(void *value, void *clientData);		
 		static void TW_CALL setRotationCB(const void *value, void *clientData);
 		static void TW_CALL getRotationCB(void *value, void *clientData);		
+
+        static void getSelectionRay(int mouse_x, int mouse_y, Vector3r& p, Vector3r& q);
 	};
 }
 

@@ -53,6 +53,8 @@ DemoBase::DemoBase()
 	m_pauseAt = -1.0;
 	m_useCache = true;
 	m_oldMousePos.setZero();
+    m_screenWidth = 1024;
+    m_screenHeight = 768;
 }
 
 DemoBase::~DemoBase()
@@ -174,12 +176,12 @@ void DemoBase::init(int argc, char **argv, const char *demoName)
 	LOG_DEBUG << "Host name:   " << SystemInfo::getHostName();
 
 	// OpenGL
-	MiniGL::init(argc, argv, 1024, 768, 0, 0, demoName);
+	MiniGL::init(argc, argv, m_screenWidth, m_screenHeight, 0, 0, demoName);
 	MiniGL::initLights();
 	MiniGL::initTexture();
 	MiniGL::getOpenGLVersion(m_context_major_version, m_context_minor_version);
 	MiniGL::setViewport(40.0, 0.1f, 500.0, Vector3r(0.0, 3.0, 8.0), Vector3r(0.0, 0.0, 0.0));
-	MiniGL::setSelectionFunc(selection, this);
+	//MiniGL::setSelectionFunc(selection, this);
 
 	if (MiniGL::checkOpenGLVersion(3, 3))
 		initShaders();
