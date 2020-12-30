@@ -27,7 +27,7 @@ void TimeStep::initParameters()
 
 static void computeAccelerationUnderSlidingFriction(const ParticleData& pd, unsigned int i, const Vector3r& grav, Vector3r& a)
 {
-    const Real friction_coeff = 0.2;
+    const Real friction_coeff = 0.8;
     const Real eps = static_cast<Real>(1e-6);
     Vector3r total_other_force = pd.getConstraintForce(i) + pd.getMass(i) * grav;
     const Vector3r& velocity = pd.getVelocity(i);
@@ -49,9 +49,9 @@ static void computeAccelerationUnderSlidingFriction(const ParticleData& pd, unsi
         a.y() = a.z() = 0.0;
         a.x() = (total_other_force.x() + neg_sign * max_friction) * pd.getInvMass(i);
     }
-    if (a.x() != 0.0) {
+    /*if (a.x() != 0.0) {
         printf("a_x = %lf", a.x());
-    }
+    }*/
 }
 
 void TimeStep::clearAccelerations(SimulationModel &model)

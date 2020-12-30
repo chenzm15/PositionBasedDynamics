@@ -40,8 +40,9 @@ namespace PBD
             const Vector3r &p1, Real invMass1,
             const Real restLength,
             const Real compliance,
-            Real& lambda,
-            Vector3r &corr0, Vector3r &corr1
+            Real& lambda, Real timeStep,
+            Vector3r &corr0, Vector3r &corr1,
+            Vector3r &force0, Vector3r &force1
         );
 
 
@@ -96,8 +97,9 @@ namespace PBD
             const Vector3r &p3, Real invMass3,
             const Real restAngle,
             const Real compliance,
-            Real& lambda,
-            Vector3r &corr0, Vector3r &corr1, Vector3r &corr2, Vector3r &corr3
+            Real& lambda, Real timeStep,
+            Vector3r &corr0, Vector3r &corr1, Vector3r &corr2, Vector3r &corr3,
+            Vector3r &force0, Vector3r &force1, Vector3r &force2, Vector3r &force3
         );
 
 

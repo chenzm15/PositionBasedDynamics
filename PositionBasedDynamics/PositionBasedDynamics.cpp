@@ -42,8 +42,10 @@ bool PositionBasedDynamics::solve_DistanceConstraint_extended(
     const Vector3r & p1, Real invMass1,
     const Real restLength,
     const Real compliance,
-    Real& lambda,
-    Vector3r & corr0, Vector3r & corr1)
+    Real& lambda, Real timeStep,
+    Vector3r & corr0, Vector3r & corr1,
+    Vector3r &force0, Vector3r &force1
+)
 {
     Real wSum = invMass0 + invMass1;
     if (wSum == 0.0)
@@ -57,6 +59,9 @@ bool PositionBasedDynamics::solve_DistanceConstraint_extended(
     corr0 = -invMass0 * delta_lambda * n;
     corr1 =  invMass1 * delta_lambda * n;
     lambda += delta_lambda;
+    Vector3r cf = -n * lambda / (timeStep * timeStep);
+    force0 = cf;
+    force1 = -cf;
 
     return true;
 }
@@ -134,8 +139,9 @@ bool PBD::PositionBasedDynamics::solve_DihedralConstraint_extended(
     const Vector3r & p1, Real invMass1,
     const Vector3r & p2, Real invMass2,
     const Vector3r & p3, Real invMass3,
-    const Real restAngle, const Real compliance, Real& lambda,
-    Vector3r & corr0, Vector3r & corr1, Vector3r & corr2, Vector3r & corr3)
+    const Real restAngle, const Real compliance, Real& lambda, Real timeStep,
+    Vector3r & corr0, Vector3r & corr1, Vector3r & corr2, Vector3r & corr3,
+    Vector3r &force0, Vector3r &force1, Vector3r &force2, Vector3r &force3)
 {
     if (invMass0 == 0.0 && invMass1 == 0.0)
         return false;
@@ -181,6 +187,12 @@ bool PBD::PositionBasedDynamics::solve_DihedralConstraint_extended(
     corr2 = invMass2 * delta_lambda * d2;
     corr3 = invMass3 * delta_lambda * d3;
     lambda += delta_lambda;
+
+    const Real s = lambda / (timeStep * timeStep);
+    force0 = d0 * s;
+    force1 = d1 * s;
+    force2 = d2 * s;
+    force3 = d3 * s;
 
     return true;
 }

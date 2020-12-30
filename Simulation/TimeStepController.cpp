@@ -25,7 +25,7 @@ TimeStepController::TimeStepController()
 	m_velocityUpdateMethod = 0;
 	m_iterations = 0;
 	m_iterationsV = 0;
-	m_maxIterations = 5;
+	m_maxIterations = 1;
 	m_maxIterationsV = 5;
 	m_collisionDetection = NULL;	
 }
@@ -265,6 +265,22 @@ void TimeStepController::positionConstraintProjection(SimulationModel &model)
 
 	while (m_iterations < m_maxIterations)
 	{
+        if (simulation_method == SimulationMethods::XPBD)
+        {
+            for (unsigned int group = 0; group < groups.size(); group++)
+            {
+                const int groupSize = (int)groups[group].size();
+                #pragma omp parallel if(groupSize > MIN_PARALLEL_SIZE) default(shared)
+                {
+                    #pragma omp for schedule(static)
+                    for (int i = 0; i < groupSize; i++)
+                    {
+                        const unsigned int constraintIndex = groups[group][i];
+                        constraints[constraintIndex]->clearConstraintForce(model);
+                    }
+                }
+            }
+        }
 		for (unsigned int group = 0; group < groups.size(); group++)
 		{
 			const int groupSize = (int)groups[group].size();
@@ -291,23 +307,23 @@ void TimeStepController::positionConstraintProjection(SimulationModel &model)
 		m_iterations++;
 	}
 
-    // 约束力计算
-    if (simulation_method == SimulationMethods::XPBD)
-    {
-        for (unsigned int group = 0; group < groups.size(); group++)
-        {
-            const int groupSize = (int)groups[group].size();
-#pragma omp parallel if(groupSize > MIN_PARALLEL_SIZE) default(shared)
-            {
-#pragma omp for schedule(static) 
-                for (int i = 0; i < groupSize; i++)
-                {
-                    const unsigned int constraintIndex = groups[group][i];
-                    constraints[constraintIndex]->computeConstraintForce(model);
-                }
-            }
-        }
-    }
+//    // 约束力计算
+//    if (simulation_method == SimulationMethods::XPBD)
+//    {
+//        for (unsigned int group = 0; group < groups.size(); group++)
+//        {
+//            const int groupSize = (int)groups[group].size();
+//#pragma omp parallel if(groupSize > MIN_PARALLEL_SIZE) default(shared)
+//            {
+//#pragma omp for schedule(static) 
+//                for (int i = 0; i < groupSize; i++)
+//                {
+//                    const unsigned int constraintIndex = groups[group][i];
+//                    constraints[constraintIndex]->computeConstraintForce(model);
+//                }
+//            }
+//        }
+//    }
 }
 
 

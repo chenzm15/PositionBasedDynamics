@@ -178,7 +178,7 @@ void createMesh()
 		{
 			const Real y = (Real)dy*j;
 			const Real x = (Real)dx*i;
-			points[i*nCols + j] = Vector3r(x, 1.0, y);
+			points[i*nCols + j] = Vector3r(x, y - height, 0.0);
 
 			uvs[i*nCols + j][0] = x/width;
 			uvs[i*nCols + j][1] = y/height;
@@ -239,7 +239,7 @@ void createMesh()
     const unsigned int hagging_point_gap = 7;
     for (unsigned int i = 0; i < nRows; i += hagging_point_gap)
     {
-        pd.setParticleType(i * nCols, ParticleType::CURTAIN_HANGING_POINT);
+        pd.setParticleType((i + 1) * nCols - 1, ParticleType::CURTAIN_HANGING_POINT);
     }
 
 	// init constraints

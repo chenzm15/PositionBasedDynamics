@@ -39,6 +39,7 @@ namespace PBD
 
         // ”√”⁄XPBD
         virtual bool solvePositionConstraintExtended(SimulationModel &model, const unsigned int iter) { return solvePositionConstraint(model, iter); }
+        virtual void clearConstraintForce(SimulationModel &model) const { }
         virtual void computeConstraintForce(SimulationModel &model) const { }
 	};
 
@@ -272,6 +273,7 @@ namespace PBD
 		virtual bool solvePositionConstraint(SimulationModel &model, const unsigned int iter);
         virtual bool solvePositionConstraintExtended(SimulationModel &model, const unsigned int iter);
 
+        virtual void clearConstraintForce(SimulationModel &model) const;
         virtual void computeConstraintForce(SimulationModel &model) const;
 	};
 
@@ -289,6 +291,7 @@ namespace PBD
 		virtual bool solvePositionConstraint(SimulationModel &model, const unsigned int iter);
         virtual bool solvePositionConstraintExtended(SimulationModel &model, const unsigned int iter);
 
+        virtual void clearConstraintForce(SimulationModel &model) const;
         virtual void computeConstraintForce(SimulationModel &model) const;
 	};
 	

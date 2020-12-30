@@ -34,7 +34,7 @@ SimulationModel::SimulationModel()
 	m_cloth_normalizeShear = false;
 	m_cloth_normalizeStretch = false;
 
-    m_cloth_compliance = static_cast<Real>(0);
+    m_cloth_compliance = static_cast<Real>(0.00001);
     m_cloth_bendingCompliance = static_cast<Real>(0.1);
 
 	m_solid_stiffness = static_cast<Real>(1.0);

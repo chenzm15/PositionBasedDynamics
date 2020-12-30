@@ -1209,6 +1209,8 @@ bool DistanceConstraint::solvePositionConstraintExtended(SimulationModel & model
 
     Vector3r &x1 = pd.getPosition(i1);
     Vector3r &x2 = pd.getPosition(i2);
+    Vector3r& f1 = pd.getConstraintForce(i1);
+    Vector3r& f2 = pd.getConstraintForce(i2);
     const Real invMass1 = pd.getInvMass(i1);
     const Real invMass2 = pd.getInvMass(i2);
 
@@ -1219,11 +1221,12 @@ bool DistanceConstraint::solvePositionConstraintExtended(SimulationModel & model
     const Real h = tm->getTimeStepSize();
     Real compliance = model.getValue<Real>(SimulationModel::CLOTH_COMPLIANCE) / (h * h);
 
-    Vector3r corr1, corr2;
+    Vector3r corr1, corr2, force1, force2;
     const bool res = PositionBasedDynamics::solve_DistanceConstraint_extended(
         x1, invMass1, x2, invMass2,
-        m_restLength, compliance, m_lambda,
-        corr1, corr2
+        m_restLength, compliance, m_lambda, h,
+        corr1, corr2,
+        force1, force2
     );
 
     if (res) {
@@ -1231,8 +1234,21 @@ bool DistanceConstraint::solvePositionConstraintExtended(SimulationModel & model
             x1 += corr1;
         if (invMass2 != 0.0 && pd.getParticleType(i2) == ParticleType::NORMAL)
             x2 += corr2;
+        f1 += force1;
+        f2 += force2;
     }
     return false;
+}
+
+void DistanceConstraint::clearConstraintForce(SimulationModel &model) const
+{
+    ParticleData &pd = model.getParticles();
+    const unsigned i1 = m_bodies[0];
+    const unsigned i2 = m_bodies[1];
+    Vector3r& f1 = pd.getConstraintForce(i1);
+    Vector3r& f2 = pd.getConstraintForce(i2);
+    f1.setZero();
+    f2.setZero();
 }
 
 void DistanceConstraint::computeConstraintForce(SimulationModel &model) const
@@ -1248,7 +1264,7 @@ void DistanceConstraint::computeConstraintForce(SimulationModel &model) const
 
     TimeManager *tm = TimeManager::getCurrent();
     const Real h_2 = tm->getTimeStepSize() * tm->getTimeStepSize();
-    Vector3r cf = n * m_lambda * h_2;
+    Vector3r cf = n * m_lambda / h_2;
     Vector3r& f1 = pd.getConstraintForce(i1);
     Vector3r& f2 = pd.getConstraintForce(i2);
     f1 += cf;
@@ -1349,6 +1365,10 @@ bool DihedralConstraint::solvePositionConstraintExtended(SimulationModel & model
     Vector3r &x2 = pd.getPosition(i2);
     Vector3r &x3 = pd.getPosition(i3);
     Vector3r &x4 = pd.getPosition(i4);
+    Vector3r &f1 = pd.getConstraintForce(i1);
+    Vector3r &f2 = pd.getConstraintForce(i2);
+    Vector3r &f3 = pd.getConstraintForce(i3);
+    Vector3r &f4 = pd.getConstraintForce(i4);
 
     const Real invMass1 = pd.getInvMass(i1);
     const Real invMass2 = pd.getInvMass(i2);
@@ -1362,11 +1382,12 @@ bool DihedralConstraint::solvePositionConstraintExtended(SimulationModel & model
     const Real h = tm->getTimeStepSize();
     Real compliance = model.getValue<Real>(SimulationModel::CLOTH_BENDING_COMPLIANCE) / (h * h);
 
-    Vector3r corr1, corr2, corr3, corr4;
+    Vector3r corr1, corr2, corr3, corr4, force1, force2, force3, force4;
     const bool res = PositionBasedDynamics::solve_DihedralConstraint_extended(
         x1, invMass1, x2, invMass2, x3, invMass3, x4, invMass4,
-        m_restAngle, compliance, m_lambda,
-        corr1, corr2, corr3, corr4
+        m_restAngle, compliance, m_lambda, h,
+        corr1, corr2, corr3, corr4,
+        force1, force2, force3, force4
     );
 
     if (res)
@@ -1379,8 +1400,29 @@ bool DihedralConstraint::solvePositionConstraintExtended(SimulationModel & model
             x3 += corr3;
         if (invMass4 != 0.0 && pd.getParticleType(i4) == ParticleType::NORMAL)
             x4 += corr4;
+        f1 += force1;
+        f2 += force2;
+        f3 += force3;
+        f4 += force4;
     }
     return res;
+}
+
+void DihedralConstraint::clearConstraintForce(SimulationModel & model) const
+{
+    ParticleData &pd = model.getParticles();
+    const unsigned i1 = m_bodies[0];
+    const unsigned i2 = m_bodies[1];
+    const unsigned i3 = m_bodies[2];
+    const unsigned i4 = m_bodies[3];
+    Vector3r& f1 = pd.getConstraintForce(i1);
+    Vector3r& f2 = pd.getConstraintForce(i2);
+    Vector3r& f3 = pd.getConstraintForce(i3);
+    Vector3r& f4 = pd.getConstraintForce(i4);
+    f1.setZero();
+    f2.setZero();
+    f3.setZero();
+    f4.setZero();
 }
 
 void DihedralConstraint::computeConstraintForce(SimulationModel &model) const
@@ -1418,7 +1460,7 @@ void DihedralConstraint::computeConstraintForce(SimulationModel &model) const
     Vector3r& f4 = pd.getConstraintForce(i4);
     TimeManager *tm = TimeManager::getCurrent();
     const Real h = tm->getTimeStepSize();
-    const Real s = m_lambda * h * h;
+    const Real s = m_lambda / (h * h);
     f1 += d0 * s;
     f2 += d1 * s;
     f3 += d2 * s;
